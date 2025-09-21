@@ -91,3 +91,5 @@ Bash
 
 mvn spring-boot:run
 Open the index.html file in your browser to interact with the frontend.
+
+Presentation Slide: https://docs.google.com/presentation/d/1MYq5Fx9dZMO6AiWRpgcmG4nlYWn60Qqbu3gd3zpMWj8/edit?usp=sharing
