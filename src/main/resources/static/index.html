@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supply Chain Tracker & NFT Minting</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .spinner { border-top-color: transparent; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+<div class="bg-white rounded-xl shadow-2xl p-8 max-w-lg w-full">
+    <h1 class="text-3xl font-bold text-gray-800 mb-4 text-center">Supply Chain Digital Passport</h1>
+    <p class="text-gray-600 mb-6 text-center">Track a product's journey step-by-step, then mint its history as a permanent NFT on the Cardano blockchain.</p>
+
+    <form id="trackerForm" class="space-y-6">
+        <div>
+            <label for="productId" class="block text-sm font-medium text-gray-700">Product ID:</label>
+            <input type="text" id="productId" name="productId" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm">
+        </div>
+        <div>
+            <label for="status" class="block text-sm font-medium text-gray-700">Status Update:</label>
+            <select id="status" name="status" required class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm">
+                <option value="">Select a status</option>
+                <option value="Raw materials sourced">Raw materials sourced</option>
+                <option value="In production">In production</option>
+                <option value="Quality control passed">Quality control passed</option>
+                <option value="Shipped from warehouse">Shipped from warehouse</option>
+                <option value="Arrived at store">Arrived at store</option>
+                <option value="Delivered to customer">Delivered to customer</option>
+            </select>
+        </div>
+        <button type="submit" id="trackBtn" class="w-full flex justify-center py-3 px-6 bg-cyan-600 text-white font-bold rounded-xl shadow-md transition duration-300 transform hover:scale-105 hover:bg-cyan-700 focus:outline-none focus:ring-4 focus:ring-cyan-300">
+            Add Status Update
+        </button>
+    </form>
+
+    <div id="finalizeSection" class="mt-6" style="display: none;">
+        <hr class="my-6">
+        <h2 class="text-xl font-bold text-gray-800 text-center">Finalize Product Journey</h2>
+        <p class="text-gray-500 text-sm text-center mb-4">This will create a permanent NFT on the blockchain.</p>
+        <button id="finalizeBtn" class="w-full flex justify-center py-3 px-6 bg-green-600 text-white font-bold rounded-xl shadow-md transition duration-300 transform hover:scale-105 hover:bg-green-700 focus:outline-none focus:ring-4 focus:ring-green-300">
+            Finalize & Mint NFT
+        </button>
+    </div>
+
+    <div id="logSection" class="mt-8">
+        <h3 class="text-lg font-semibold text-gray-800 mb-2">Product Journey Log:</h3>
+        <div id="journeyLog" class="bg-gray-50 rounded-md p-4 space-y-3 max-h-64 overflow-y-auto">
+            <p class="text-gray-500 text-sm">No journey started yet.</p>
+        </div>
+    </div>
+</div>
+
+<div id="qrModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" style="display: none;">
+    <div class="bg-white rounded-lg shadow-xl p-8 max-w-sm w-full text-center">
+        <h2 class="text-2xl font-bold text-green-600 mb-4">NFT Minted Successfully!</h2>
+        <p class="text-gray-700 mb-2">Scan the QR code to view the permanent record on the Cardanoscan blockchain explorer.</p>
+        <div id="qrCodeContainer" class="flex justify-center my-6">
+        </div>
+        <p class="text-sm text-gray-600 mb-1">Transaction Hash:</p>
+        <a href="#" id="txHashLink" target="_blank" class="text-cyan-600 hover:underline break-all text-xs"></a>
+        <button id="closeModalBtn" class="mt-8 w-full py-2 px-4 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">Close</button>
+    </div>
+</div>
+
+
+<script>
+    // --- UI Elements ---
+    const trackerForm = document.getElementById('trackerForm');
+    const productIdInput = document.getElementById('productId');
+    const statusInput = document.getElementById('status');
+    const trackBtn = document.getElementById('trackBtn');
+    const journeyLog = document.getElementById('journeyLog');
+
+    const finalizeSection = document.getElementById('finalizeSection');
+    const finalizeBtn = document.getElementById('finalizeBtn');
+
+    const qrModal = document.getElementById('qrModal');
+    const qrCodeContainer = document.getElementById('qrCodeContainer');
+    const txHashLink = document.getElementById('txHashLink');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+
+    let currentProductId = '';
+
+    // --- SPINNER for buttons ---
+    const spinner = `<div class="spinner animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>`;
+
+    // --- EVENT LISTENER FOR ADDING A STATUS UPDATE ---
+    trackerForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        const productId = productIdInput.value;
+        const status = statusInput.value;
+
+        // Lock the product ID after the first entry to ensure a consistent journey
+        if (currentProductId === '') {
+            currentProductId = productId;
+            productIdInput.disabled = true;
+        }
+
+        trackBtn.disabled = true;
+        trackBtn.innerHTML = spinner;
+
+        try {
+            const response = await fetch('/api/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ productId, status, timestamp: new Date().toISOString() })
+            });
+
+            if (!response.ok) throw new Error(await response.text());
+
+            const resultText = await response.text();
+
+            // Add log entry for the in-memory update
+            const logEntry = document.createElement('div');
+            logEntry.className = "p-3 bg-white rounded-lg shadow-sm";
+            logEntry.innerHTML = `
+                <p class="text-sm font-medium text-gray-800">Status Added: <span class="font-normal text-cyan-700">${status}</span></p>
+                <p class="text-xs text-gray-400 mt-1">${new Date().toLocaleString()}</p>
+            `;
+            if (journeyLog.querySelector('p')) journeyLog.innerHTML = '';
+            journeyLog.append(logEntry);
+
+            // Show the finalize button
+            finalizeSection.style.display = 'block';
+            statusInput.value = ''; // Reset dropdown
+
+        } catch (error) {
+            alert('Error: ' + error.message);
+        } finally {
+            trackBtn.disabled = false;
+            trackBtn.innerText = 'Add Status Update';
+        }
+    });
+
+    // --- EVENT LISTENER FOR FINALIZING THE JOURNEY & MINTING NFT ---
+    finalizeBtn.addEventListener('click', async function() {
+        if (!currentProductId) {
+            alert('Please add at least one status update first.');
+            return;
+        }
+
+        finalizeBtn.disabled = true;
+        finalizeBtn.innerHTML = spinner;
+
+        try {
+            // Call the finalize endpoint
+            const finalizeResponse = await fetch(`/api/finalize/${currentProductId}`, { method: 'POST' });
+            if (!finalizeResponse.ok) throw new Error(await finalizeResponse.text());
+
+            const txHash = await finalizeResponse.text();
+
+            // Call the QR code endpoint
+            const qrResponse = await fetch(`/api/qr/${txHash}`);
+            if (!qrResponse.ok) throw new Error('Failed to fetch QR code.');
+
+            const qrBlob = await qrResponse.blob();
+            const qrImageUrl = URL.createObjectURL(qrBlob);
+
+            // Populate and show the modal
+            qrCodeContainer.innerHTML = `<img src="${qrImageUrl}" alt="Transaction QR Code" />`;
+            const explorerUrl = `https://preprod.cardanoscan.io/transaction/${txHash}`;
+            txHashLink.href = explorerUrl;
+            txHashLink.innerText = txHash;
+            qrModal.style.display = 'flex';
+
+        } catch (error) {
+            alert('Error during finalization: ' + error.message);
+        } finally {
+            finalizeBtn.disabled = false;
+            finalizeBtn.innerText = 'Finalize & Mint NFT';
+        }
+    });
+
+    // --- EVENT LISTENER FOR CLOSING THE MODAL ---
+    closeModalBtn.addEventListener('click', () => {
+        qrModal.style.display = 'none';
+        // Reset the entire page to start a new journey
+        window.location.reload();
+    });
+
+</script>
+</body>
+</html>
